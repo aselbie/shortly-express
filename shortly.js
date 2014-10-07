@@ -4,6 +4,7 @@ var partials = require('express-partials');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
 var expressSession = require('express-session');
+var bcrypt = require('bcrypt');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -76,39 +77,45 @@ function restrict(req, res, next) {
 app.post('/signup',
 function(req, res) {
   var uri = req.body.url;
-  console.log(req.body);
 
-  new User()
-    .where({username: req.body.username})
+  new User({username: req.body.username})
     .fetch()
     .then(function(user){
       if (user) {
-        res.redirect('/login');
+        req.session.user=true;
+        res.redirect('/');
       } else {
-        new User({
-          username: req.body.username,
-          password: req.body.password
-        }).save().then(function(user){
-          //LOG THEM IN
+        bcrypt.genSalt(10, function(err, salt) {
+            bcrypt.hash("B4c0/\/", salt, function(err, hash) {
+                new User({
+                  username: req.body.username,
+                  password: hash
+                }).save().then(function(user){
+                  req.session.user=true;
+                  res.redirect('/');
+                });
+            });
         });
       }
     });
 });
-
 app.post('/login',
 function(req, res) {
   var uri = req.body.url;
-  console.log(req.body);
 
-  new User()
-    .where({username: req.body.username})
+  new User({username:req.body.username})
     .fetch()
     .then(function(user){
-      console.log(user);
-      if (user.username===req.body.username && user.password===req.body.password) {
-        res.redirect('/login');
+      console.log('------------',user);
+      if (user) {
+        bcrypt.compare(req.body.password, user.attributes.password, function(err, res) {
+          if (err) {res.redirect('/login');}
+          req.session.user=true;
+          res.redirect('/');
+        });
       } else {
-        console.log('wrong username or password!! Sign up below')
+        console.log('wrong username or password!! Sign up below');
+        res.redirect('/login');
       }
     });
 });

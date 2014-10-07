@@ -59,7 +59,7 @@ describe('', function() {
       });
   });
 
-  xdescribe('Link creation:', function(){
+  describe('Link creation:', function(){
 
     var requestWithSession = request.defaults({jar: true});
 
@@ -155,9 +155,6 @@ describe('', function() {
 
       beforeEach(function(done){
         // save a link to the database
-      });
-
-      it('Returns the same shortened code', function(done) {
         var link = new Link({
           url: 'http://www.roflzoo.com/',
           title: 'Funny animal pictures, funny animals, funniest dogs',
@@ -166,6 +163,9 @@ describe('', function() {
         link.save().then(function(){
           done();
         });
+      });
+
+      it('Returns the same shortened code', function(done) {
         var options = {
           'method': 'POST',
           'followAllRedirects': true,
@@ -184,14 +184,7 @@ describe('', function() {
       });
 
       it('Shortcode redirects to correct url', function(done) {
-        var link = new Link({
-          url: 'http://www.roflzoo.com/',
-          title: 'Funny animal pictures, funny animals, funniest dogs',
-          base_url: 'http://127.0.0.1:4568'
-        });
-        link.save().then(function(){
-          done();
-        });
+
         var options = {
           'method': 'GET',
           'uri': 'http://127.0.0.1:4568/' + link.get('code')
@@ -205,14 +198,7 @@ describe('', function() {
       });
 
       it('Returns all of the links to display on the links page', function(done) {
-        var link = new Link({
-          url: 'http://www.roflzoo.com/',
-          title: 'Funny animal pictures, funny animals, funniest dogs',
-          base_url: 'http://127.0.0.1:4568'
-        });
-        link.save().then(function(){
-          done();
-        });
+
         var options = {
           'method': 'GET',
           'uri': 'http://127.0.0.1:4568/links'
@@ -270,6 +256,7 @@ describe('', function() {
         db.knex('users')
           .where('username', '=', 'Svnh')
           .then(function(res) {
+            console.log(res);
             if (res[0] && res[0]['username']) {
               var user = res[0]['username'];
             }
