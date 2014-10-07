@@ -2,7 +2,8 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var cookieParser = require('cookie-parser');
+var expressSession = require('express-session');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -10,6 +11,7 @@ var User = require('./app/models/user');
 var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
+var linkController = require ('./app/controllers/link.controller');
 
 var app = express();
 
@@ -23,61 +25,93 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
 
-app.get('/', 
+app.use(expressSession({secret: 'noOneKnows'}));
+app.use(cookieParser());
+
+
+app.get('/', restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/login',
+function(req, res) {
+  res.render('login');
+});
+
+app.get('/signup',
+function(req, res) {
+  res.render('signup');
+});
+
+app.get('/create', restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links', restrict,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
-function(req, res) {
-  var uri = req.body.url;
+app.post('/links', linkController.post);
 
-  if (!util.isValidUrl(uri)) {
-    console.log('Not a valid url: ', uri);
-    return res.send(404);
-  }
-
-  new Link({ url: uri }).fetch().then(function(found) {
-    if (found) {
-      res.send(200, found.attributes);
-    } else {
-      util.getUrlTitle(uri, function(err, title) {
-        if (err) {
-          console.log('Error reading URL heading: ', err);
-          return res.send(404);
-        }
-
-        var link = new Link({
-          url: uri,
-          title: title,
-          base_url: req.headers.origin
-        });
-
-        link.save().then(function(newLink) {
-          Links.add(newLink);
-          res.send(200, newLink);
-        });
-      });
-    }
-  });
-});
 
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
 
+function restrict(req, res, next) {
+  if (req.session.user) {
+    next();
+  } else {
+    req.session.error = 'Access denied!';
+    res.redirect('/login');
+  }
+}
+
+
+app.post('/signup',
+function(req, res) {
+  var uri = req.body.url;
+  console.log(req.body);
+
+  new User()
+    .where({username: req.body.username})
+    .fetch()
+    .then(function(user){
+      if (user) {
+        res.redirect('/login');
+      } else {
+        new User({
+          username: req.body.username,
+          password: req.body.password
+        }).save().then(function(user){
+          //LOG THEM IN
+        });
+      }
+    });
+});
+
+app.post('/login',
+function(req, res) {
+  var uri = req.body.url;
+  console.log(req.body);
+
+  new User()
+    .where({username: req.body.username})
+    .fetch()
+    .then(function(user){
+      console.log(user);
+      if (user.username===req.body.username && user.password===req.body.password) {
+        res.redirect('/login');
+      } else {
+        console.log('wrong username or password!! Sign up below')
+      }
+    });
+});
 
 
 /************************************************************/
