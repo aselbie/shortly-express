@@ -13,44 +13,79 @@ var Links = require('./app/collections/links');
 var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 var linkController = require ('./app/controllers/link.controller');
+var passport= require('passport');
+var gitHubStrategy= require('passport-github').Strategy;
+
+passport.serializeUser(function(user,done){
+  done(null, user);
+})
+
+passport.deserializeUser(function(obj,done){
+  done(null, obj);
+})
+
+passport.use(new gitHubStrategy({
+    clientID: '0cc2a75f391f4535c8af',
+    clientSecret: 'd8af8c392eacda7c682ede827f4e4d5b8e3f8caa',
+    callbackURL: "http://127.0.0.1:3000/auth/github/callback"
+  }, function(accessToken, refreshToken, profile, done){
+
+    return done(null, profile);
+
+    new User({username: profile.username})
+      .fetch()
+      .then(function(user){
+        console.log(user);
+        if (user) {
+          done(null, user);
+        } else {
+          new User({
+            username: profile.username,
+          }).save().then(function(user){
+            console.log(user);
+            done(null, user);
+          });
+        }
+      });
+
+  }
+));
 
 var app = express();
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
+
 app.use(partials());
-// Parse JSON (uniform resource locators)
 app.use(bodyParser.json());
-// Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
-
-
 app.use(expressSession({secret: 'noOneKnows'}));
 app.use(cookieParser());
+app.use(passport.initialize());
+app.use(passport.session());
 
-
-app.get('/', restrict,
+app.get('/', ensureAuthenticated,//restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/login',
-function(req, res) {
-  res.render('login');
-});
+// app.get('/login',
+// function(req, res) {
+//   res.render('login');
+// });
 
-app.get('/signup',
-function(req, res) {
-  res.render('signup');
-});
+// app.get('/signup',
+// function(req, res) {
+//   res.render('signup');
+// });
 
-app.get('/create', restrict,
+app.get('/create', ensureAuthenticated,//restrict,
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', restrict,
+app.get('/links', ensureAuthenticated,//restrict,
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
@@ -64,61 +99,31 @@ app.post('/links', linkController.post);
 // Write your authentication routes here
 /************************************************************/
 
-function restrict(req, res, next) {
-  if (req.session.user) {
-    next();
+app.get('/auth/github', passport.authenticate('github'), function(req, res){
+  // Will not be called because Github will redirect.
+});
+
+app.get('/auth/github/callback',
+  passport.authenticate('github', { failureRedirect: '/login'}),
+  function(req, res) {
+    res.redirect('/');
+  });
+
+app.get('/logout', function(req, res){
+  req.logout();
+  res.redirect('/login');
+})
+
+function ensureAuthenticated(req, res, next) {
+  console.log('ensureAuthenticated');
+  if (req.isAuthenticated()) {
+    return next();
   } else {
-    req.session.error = 'Access denied!';
-    res.redirect('/login');
+    res.redirect('/auth/github');
   }
 }
 
 
-app.post('/signup',
-function(req, res) {
-  var uri = req.body.url;
-
-  new User({username: req.body.username})
-    .fetch()
-    .then(function(user){
-      if (user) {
-        req.session.user=true;
-        res.redirect('/');
-      } else {
-        bcrypt.genSalt(10, function(err, salt) {
-            bcrypt.hash("B4c0/\/", salt, function(err, hash) {
-                new User({
-                  username: req.body.username,
-                  password: hash
-                }).save().then(function(user){
-                  req.session.user=true;
-                  res.redirect('/');
-                });
-            });
-        });
-      }
-    });
-});
-app.post('/login',
-function(req, res) {
-  var uri = req.body.url;
-
-  new User({username:req.body.username})
-    .fetch()
-    .then(function(user){
-      console.log('------------',user);
-      if (user) {
-        bcrypt.compare(req.body.password, user.attributes.password, function(err, res) {
-          if (err) {res.redirect('/login');}
-          req.session.user=true;
-          res.redirect('/');
-        });
-      } else {
-        console.log('wrong username or password!! Sign up below');
-        res.redirect('/login');
-      }
-    });
-});
 
 
 /************************************************************/
@@ -149,5 +154,5 @@ app.get('/*', function(req, res) {
   });
 });
 
-console.log('Shortly is listening on 4568');
-app.listen(4568);
+console.log('Shortly is listening on 3000');
+app.listen(3000);
